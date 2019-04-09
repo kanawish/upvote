@@ -1,3 +1,7 @@
 <resources>
-    <string name="app_name">upvote</string>
+    <string name="app_name">Upvote</string>
+
+    <string name="upvotes">%d ❤️️ %d 👍</string>
+    <string name="heartButton">+❤️</string>
+    <string name="thumbsUpButton">+👍</string>
 </resources>
