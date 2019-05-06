@@ -3,13 +3,14 @@ package com.kanawish.upvote.common
 import com.jakewharton.rxrelay2.PublishRelay
 import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.observables.ConnectableObservable
 import timber.log.Timber
 
 open class RxModelStore<S>(startingState: S) : ModelStore<S> {
 
     private val intents = PublishRelay.create<Intent<S>>()
 
-    private val store = intents
+    private val store: ConnectableObservable<S> = intents
         .observeOn(AndroidSchedulers.mainThread())
         .scan(startingState) { oldState, intent -> intent.reduce(oldState) }
         .replay(1)
