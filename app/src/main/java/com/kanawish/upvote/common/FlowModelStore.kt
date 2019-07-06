@@ -26,10 +26,10 @@ open class FlowModelStore<S>(startingState: S) : ModelStore<S> {
 fun log(msg: String) = println("[${Thread.currentThread().name}] $msg")
 
 fun main() = runBlocking {
-    GlobalScope.launch {
+    val job = GlobalScope.launch {
         delay(1000)
         print("peeps.")
     }
     print("Sup', ")
-    delay(2000)
+    job.join() // non blocking wait for job.
 }
