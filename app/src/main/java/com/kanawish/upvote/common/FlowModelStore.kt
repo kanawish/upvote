@@ -3,10 +3,12 @@ package com.kanawish.upvote.common
 import io.reactivex.Observable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 
 @FlowPreview
@@ -50,7 +52,12 @@ private suspend fun summerTime() {
             }
         }
     } finally {
-        println("...finally {}!")
+        withContext(NonCancellable) {
+            println("job: finally {}")
+            println("job: gimme a sec ...")
+            delay(500)
+            println("job: Okay I swept the floors. We're good to go.")
+        }
     }
 }
 
