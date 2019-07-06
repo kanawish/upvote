@@ -33,19 +33,31 @@ fun log(msg: String) = println("[${Thread.currentThread().name}] $msg")
 fun main() = runBlocking {
     // launch{} a new coroutine in the scope of runBlocking:
     launch {
-        delay(200)
-        println("Task from runBlocking{}")
+        delayTwo()
     }
 
     coroutineScope {
         launch {
-            delay(300)
-            println("Nested Task in coroutineScope{}")
+            delayThree()
         }
 
-        delay(100)
-        println("Task from coroutineScope{}")
+        delayOne()
     }
 
     println("Coroutine scope is over")
+}
+
+private suspend fun delayOne() {
+    delay(100)
+    println("1 Task from coroutineScope{}")
+}
+
+private suspend fun delayThree() {
+    delay(300)
+    println("3 Nested Task in coroutineScope{}")
+}
+
+private suspend fun delayTwo() {
+    delay(200)
+    println("Task from runBlocking{}")
 }
