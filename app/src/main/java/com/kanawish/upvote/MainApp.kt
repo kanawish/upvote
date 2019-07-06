@@ -3,6 +3,14 @@ package com.kanawish.upvote
 import android.app.Application
 import timber.log.Timber
 
+/**
+ * @startuml
+ * hide empty members
+ * class Application
+ * class Activity
+ * class Fragment
+ * @enduml
+ */
 class MainApp : Application() {
     override fun onCreate() {
         super.onCreate()

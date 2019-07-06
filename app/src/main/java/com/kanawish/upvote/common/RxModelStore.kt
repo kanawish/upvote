@@ -39,7 +39,7 @@ open class RxModelStore<S>(startingState: S) : ModelStore<S> {
      */
     private val internalDisposable = store.subscribe(::internalLogger, ::crashHandler)
 
-    private fun internalLogger(state:S) = Timber.i("$state")
+    private fun internalLogger(state: S) = Timber.i("$state")
 
     private fun crashHandler(throwable: Throwable): Unit = throw throwable
 
