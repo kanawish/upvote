@@ -40,13 +40,17 @@ fun main() = runBlocking {
 private suspend fun summerTime() {
     var nextPrintTime = System.currentTimeMillis()
     var i = 0
-    while (true) { // cancellable computation loop
-        // print a message twice a second
-        if (System.currentTimeMillis() >= nextPrintTime) {
-            yield()
-            println("job: I'm sleeping ${i++} ...")
-            nextPrintTime += 500L
+    try {
+        while (true) { // cancellable computation loop
+            // print a message twice a second
+            if (System.currentTimeMillis() >= nextPrintTime) {
+                yield()
+                println("job: I'm sleeping ${i++} ...")
+                nextPrintTime += 500L
+            }
         }
+    } finally {
+        println("...finally {}!")
     }
 }
 
