@@ -2,6 +2,7 @@ package com.kanawish.upvote.common
 
 import io.reactivex.Observable
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
@@ -32,8 +33,19 @@ fun log(msg: String) = println("[${Thread.currentThread().name}] $msg")
 fun main() = runBlocking {
     // launch{} a new coroutine in the scope of runBlocking:
     launch {
-        delay(1000)
-        print("peeps.")
+        delay(200)
+        println("Task from runBlocking{}")
     }
-    print("Sup', ")
+
+    coroutineScope {
+        launch {
+            delay(300)
+            println("Nested Task in coroutineScope{}")
+        }
+
+        delay(100)
+        println("Task from coroutineScope{}")
+    }
+
+    println("Coroutine scope is over")
 }
