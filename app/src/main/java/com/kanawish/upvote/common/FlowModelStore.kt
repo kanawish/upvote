@@ -1,10 +1,12 @@
 package com.kanawish.upvote.common
 
 import io.reactivex.Observable
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
@@ -25,39 +27,26 @@ open class FlowModelStore<S>(startingState: S) : ModelStore<S> {
 
 fun log(msg: String) = println("[${Thread.currentThread().name}] $msg")
 
-/**
- * Structure concurrency
- * Co-routine builders add an instance of CoroutineScope to
- * their code block, runBlocking{} does this here:
- */
 fun main() = runBlocking {
-    // launch{} a new coroutine in the scope of runBlocking:
-    launch {
-        delayTwo()
+    val job = launch(Dispatchers.Default) {
+        summerTime()
     }
+    delay(1300L) // delay a bit
+    println("main: I'm tired of waiting!")
+    job.cancel() // cancels the job
+    job.join() // waits for job's completion
+    println("main: Now I can quit.")
+}
 
-    coroutineScope {
-        launch {
-            delayThree()
+private fun CoroutineScope.summerTime() {
+    var nextPrintTime = System.currentTimeMillis()
+    var i = 0
+    while (isActive) { // cancellable computation loop
+        // print a message twice a second
+        if (System.currentTimeMillis() >= nextPrintTime) {
+            println("job: I'm sleeping ${i++} ...")
+            nextPrintTime += 500L
         }
-
-        delayOne()
     }
-
-    println("Coroutine scope is over")
 }
 
-private suspend fun delayOne() {
-    delay(100)
-    println("1 Task from coroutineScope{}")
-}
-
-private suspend fun delayThree() {
-    delay(300)
-    println("3 Nested Task in coroutineScope{}")
-}
-
-private suspend fun delayTwo() {
-    delay(200)
-    println("Task from runBlocking{}")
-}
