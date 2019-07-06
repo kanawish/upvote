@@ -1,14 +1,13 @@
 package com.kanawish.upvote.common
 
 import io.reactivex.Observable
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 
 @FlowPreview
 open class FlowModelStore<S>(startingState: S) : ModelStore<S> {
@@ -38,12 +37,13 @@ fun main() = runBlocking {
     println("main: Now I can quit.")
 }
 
-private fun CoroutineScope.summerTime() {
+private suspend fun summerTime() {
     var nextPrintTime = System.currentTimeMillis()
     var i = 0
-    while (isActive) { // cancellable computation loop
+    while (true) { // cancellable computation loop
         // print a message twice a second
         if (System.currentTimeMillis() >= nextPrintTime) {
+            yield()
             println("job: I'm sleeping ${i++} ...")
             nextPrintTime += 500L
         }
