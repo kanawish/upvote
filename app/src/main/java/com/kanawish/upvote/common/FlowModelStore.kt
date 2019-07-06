@@ -8,6 +8,7 @@ import kotlinx.coroutines.ObsoleteCoroutinesApi
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.channels.produce
 import kotlinx.coroutines.delay
@@ -33,25 +34,22 @@ open class FlowModelStore<S>(startingState: S) : ModelStore<S> {
 
 fun log(msg: String) = println("[${Thread.currentThread().name}] $msg")
 
-@ExperimentalCoroutinesApi
-fun CoroutineScope.produceNumbers() = produce<Int> {
-    var x = 1 // start from 1
+/**
+ * Fan-in
+ */
+fun main() = runBlocking {
+    val channel = Channel<String>()
+    launch { sendString(channel, "foo", 200L) }
+    launch { sendString(channel, "BAR!", 500L) }
+    repeat(6) { // receive first six
+        println(channel.receive())
+    }
+    coroutineContext.cancelChildren() // cancel all children to let main finish
+}
+
+suspend fun sendString(channel: SendChannel<String>, s: String, time: Long) {
     while (true) {
-        send(x++) // produce next
-        delay(100) // wait 0.1s
+        delay(time)
+        channel.send(s)
     }
-}
-
-fun CoroutineScope.launchProcessor(id: Int, channel: ReceiveChannel<Int>) = launch {
-    for (msg in channel) {
-        println("Processor #$id received $msg")
-    }
-}
-
-@ExperimentalCoroutinesApi
-fun main() = runBlocking<Unit> {
-    val producer = produceNumbers()
-    repeat(5) { launchProcessor(it, producer) }
-    delay(950)
-    producer.cancel() // cancel producer coroutine and thus kill them all
 }
