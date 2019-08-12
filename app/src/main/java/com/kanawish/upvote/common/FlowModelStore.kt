@@ -1,16 +1,14 @@
 package com.kanawish.upvote.common
 
 import hu.akarnokd.kotlin.flow.BehaviorSubject
-import hu.akarnokd.kotlin.flow.PublishSubject
-import hu.akarnokd.kotlin.flow.replay
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.MainScope
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.produce
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.consumeAsFlow
@@ -21,7 +19,6 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.setMain
 
 /*
  * Stuff to explore/fold in:
@@ -34,40 +31,37 @@ import kotlinx.coroutines.test.setMain
  * - https://geoffreymetais.github.io/code/coroutines/#scope
  * - https://developer.android.com/kotlin/coroutines
  * - https://github.com/Kotlin/kotlinx.coroutines/tree/master/ui/kotlinx-coroutines-android
+ *
+ * - https://github.com/friendlyrobotnyc/Core
  */
 
-@FlowPreview @ExperimentalCoroutinesApi
-open class FlowModelStore<S>(startingState: S) : CoroutineScope by MainScope()  {
+@FlowPreview
+open class FlowModelStore<S>(
+    startingState: S,
+    parentScope: CoroutineScope
+) : CoroutineScope by parentScope {
 
-    val i2 = Channel<Intent<S>>()
-        .also { channel ->
-            launch {
-                channel.consumeAsFlow()
-                    .scan(startingState) { oldState, intent ->
-                        intent.reduce(oldState)
-                    }
-                    .collect {
-                        println("store[$it]")
-                        s2.emit(it)
-                    }
-            }
+    private val intents = Channel<Intent<S>>().also { channel ->
+        launch {
+            channel.consumeAsFlow()
+                .scan(startingState) { oldState, intent ->
+                    intent.reduce(oldState)
+                }
+                .onCompletion {
+                    log("store.onCompletion()")
+                }
+                .collect { state ->
+                    log("store:{$state}")
+                    store.emit(state)
+                }
+        }.invokeOnCompletion { throwable ->
+            log("intents.job.invokeOnCompletion()")
+            log("throwable: $throwable")
         }
-
-    // Multicaster
-    val s2 = BehaviorSubject<S>()
-
-    suspend fun foo() {
-        i2.send( intent { this } )
     }
 
-    val intents = PublishSubject<Intent<S>>()
-
-    val store: Flow<S> = intents
-        .scan(startingState) { oldState, intent ->
-            intent.reduce(oldState)
-        }
-        .replay(1) { it }
-        .apply { launch { collect { println("store[$it]") } } }
+    // Multicaster
+    val store = BehaviorSubject<S>()
 
     /**
      * Model will receive intents to be processed via this function.
@@ -75,11 +69,9 @@ open class FlowModelStore<S>(startingState: S) : CoroutineScope by MainScope()  
      * ModelState is immutable. Processed intents will work much like `copy()`
      * and create a new (modified) modelState from an old one.
      */
-    fun process(intent: Intent<S>)
-    {
-        launch {
-            intents.emit(intent)
-        }
+    suspend fun process(intent: Intent<S>) {
+        log("store.process(intent)")
+        intents.send(intent)
     }
 
     /**
@@ -92,11 +84,9 @@ open class FlowModelStore<S>(startingState: S) : CoroutineScope by MainScope()  
      */
     fun modelState(): Flow<S> = store
 
-    fun destroy() {
-        launch {
-            intents.complete()
-        }
-        cancel()
+    suspend fun close(): Boolean {
+        log("store.close()")
+        return intents.close().also { store.complete() }
     }
 }
 
@@ -104,57 +94,77 @@ fun log(msg: String) = println("[${Thread.currentThread().name}] $msg")
 
 @FlowPreview
 val flow: Flow<Int> = flow {
-    var i = 0
+    var i = 1
     while (i < 6) {
+        log("flow.delay(500)")
         delay(500)
-        println("Emit $i")
+        log("flow.emit($i)")
         emit(i++)
     }
 }
 
+@ExperimentalCoroutinesApi
+fun CoroutineScope.producer() = produce {
+    var i = 0
+    while (i < 6) send(i++)
+}
+
 @FlowPreview @ExperimentalCoroutinesApi
-fun main() = runBlocking<Unit> {
-    val mainThreadSurrogate = newSingleThreadContext("UI thread")
-    Dispatchers.setMain(mainThreadSurrogate)
-
-    val storeCounter = FlowModelStore(0)
-
-//    launch { flow.collect { println("A: got $it") } }
-//    launch { flow.collect { println("B: got $it") } }
-
+fun main() = runBlocking(newSingleThreadContext("fake-main")) {
+    val storeCounter = FlowModelStore(0, this)
     launch {
+        log("launching flow")
         // Outputs into the storeCounter
         flow
             .onCompletion {
-                println("completion -> intents.complete()")
-                storeCounter.intents.complete()
+                log("flow.onCompletion()")
+                storeCounter.close()
             }.collect { counter ->
-                println("intent{this+$counter}")
-                storeCounter.process(intent { this+counter })
+                log("storeCounter.process(intent{this+$counter})")
+                storeCounter.process(intent {
+                    (this + counter).also { log("intent ($this)->$it") }
+                })
             }
-
+        log("completed flow")
     }
 
-    delay(2000)
-    println("Launch j1")
-    launch {
-        storeCounter.modelState().collect {
-            println("j1[$it]")
-        }
-    }
+    log("delay")
+    delay(500)
+    val j1 = launchCollector("j1", storeCounter)
+
+    log("delay")
+    delay(600)
+    log("cancelling j1")
+    j1.cancel()
+
+    log("delay")
     delay(1000)
-    println("Launch j2")
-    launch {
-        storeCounter.modelState().collect {
-            println("j2[$it]")
-        }
-    }
+    launchCollector("j2", storeCounter)
 
+    log("delay")
+    delay(1000)
+    launchCollector("j3", storeCounter)
+
+    log("delay")
     delay(100)
 
-    println("joinAll()")
+    log("joinAll()")
     joinAll()
 
-    println("end of main()")
-    mainThreadSurrogate.close()
+    log("end of main()")
+}
+
+private fun CoroutineScope.launchCollector(name: String, storeCounter: FlowModelStore<Int>): Job {
+    log("Launching $name")
+    return launch {
+        log("$name pre-collect")
+        storeCounter.modelState().collect {
+            log("$name ensureActive()")
+            ensureActive()
+            log("$name[$it]")
+        }
+        log("$name post-collect")
+    }.also {
+        log("Launched $name")
+    }
 }
