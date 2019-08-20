@@ -5,20 +5,51 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ConflatedBroadcastChannel
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.produce
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.runBlocking
+
+interface ReceiverChannelModelStore<S> {
+    fun modelState(): ReceiveChannel<S>
+}
+
+@FlowPreview @ExperimentalCoroutinesApi
+open class CakeModelStore<S>(startingState: S):ReceiverChannelModelStore<S> {
+
+    private val store = ConflatedBroadcastChannel(startingState)
+
+    suspend fun process(intent: Intent<S>) {
+        store.send( intent.reduce(store.value) )
+    }
+
+    // TODO: Continue here
+    override fun modelState(): ReceiveChannel<S> {
+        return store.openSubscription()
+    }
+
+    // TODO: Ask a few questions on ASG re: need to cancel, etc.
+    fun cancel() {
+        store.cancel()
+    }
+}
 
 /*
  * Stuff to explore/fold in:
@@ -34,58 +65,82 @@ import kotlinx.coroutines.runBlocking
  *
  * - https://github.com/friendlyrobotnyc/Core
  */
+@FlowPreview @ExperimentalCoroutinesApi
+open class ChannelModelStore<S>(
+    startingState: S,
+    parentScope: CoroutineScope
+) : CoroutineScope by parentScope, ReceiverChannelModelStore<S>  {
 
-@FlowPreview
+    /**
+     * https://github.com/Kotlin/kotlinx.coroutines/issues/1340
+     * https://github.com/Kotlin/kotlinx.coroutines/issues/1261
+     */
+    private val intents = Channel<Intent<S>>()
+    private val store = ConflatedBroadcastChannel<S>()
+
+    val reducerJob = launch {
+        intents
+            .consumeAsFlow()
+            .onCompletion { log("reducerJob completed") }
+            .scan(startingState) { oldState, intent -> intent.reduce(oldState) }
+            .collect { state ->
+                log("store.send($state)")
+                store.send(state)
+            }
+
+    }
+
+    suspend fun process(intent: Intent<S>) {
+        intents.send(intent)
+    }
+
+    // TODO: Continue here
+    override fun modelState(): ReceiveChannel<S> {
+        return store.openSubscription()
+    }
+
+    // TODO: Ask a few questions on ASG re: need to cancel, etc.
+    fun cancel() {
+        intents.cancel()
+        store.cancel()
+    }
+}
+
+
+/**
+ * Using https://github.com/akarnokd/kotlin-flow-extensions
+ */
+@FlowPreview @ExperimentalCoroutinesApi
 open class FlowModelStore<S>(
     startingState: S,
     parentScope: CoroutineScope
 ) : CoroutineScope by parentScope {
 
-    private val intents = Channel<Intent<S>>().also { channel ->
+    private val intents = Channel<Intent<S>>()
+    private val store = BehaviorSubject<S>()
+
+    init {
         launch {
-            channel.consumeAsFlow()
-                .scan(startingState) { oldState, intent ->
-                    intent.reduce(oldState)
-                }
-                .onCompletion {
-                    log("store.onCompletion()")
-                }
-                .collect { state ->
-                    log("store:{$state}")
-                    store.emit(state)
-                }
-        }.invokeOnCompletion { throwable ->
-            log("intents.job.invokeOnCompletion()")
-            log("throwable: $throwable")
+            intents.consumeAsFlow()
+                .scan(startingState) { oldState, intent -> intent.reduce(oldState) }
+                .collect { state -> store.emit(state) }
         }
     }
 
-    // Multicaster
-    val store = BehaviorSubject<S>()
-
-    /**
-     * Model will receive intents to be processed via this function.
-     *
-     * ModelState is immutable. Processed intents will work much like `copy()`
-     * and create a new (modified) modelState from an old one.
-     */
     suspend fun process(intent: Intent<S>) {
-        log("store.process(intent)")
         intents.send(intent)
     }
 
-    /**
-     * stream of changes to ModelState
-     *
-     * Every time a modelState is replaced by a new one, this observable will
-     * fire.
-     *
-     * This is what views will subscribe to.
-     */
-    fun modelState(): Flow<S> = store
+    fun launchStoreCollect(action: suspend (value: S) -> Unit): Job {
+        return launch {
+            store.collect {
+                ensureActive()
+                action(it)
+            }
+        }
+    }
 
     suspend fun close(): Boolean {
-        log("store.close()")
         return intents.close().also { store.complete() }
     }
 }
@@ -94,32 +149,33 @@ fun log(msg: String) = println("[${Thread.currentThread().name}] $msg")
 
 @FlowPreview
 val flow: Flow<Int> = flow {
-    var i = 1
-    while (i < 6) {
+    for (i in 1..5) {
         log("flow.delay(500)")
         delay(500)
         log("flow.emit($i)")
-        emit(i++)
+        emit(i)
     }
 }
 
 @ExperimentalCoroutinesApi
-fun CoroutineScope.producer() = produce {
-    var i = 0
-    while (i < 6) send(i++)
+fun CoroutineScope.producer(): ReceiveChannel<Int> = produce {
+    for (i in 1..15) {
+        log("producer delay(500)")
+        delay(500)
+        log("producer send($i)")
+        send(i)
+    }
 }
 
 @FlowPreview @ExperimentalCoroutinesApi
 fun main() = runBlocking(newSingleThreadContext("fake-main")) {
-    val storeCounter = FlowModelStore(0, this)
+
+    val storeCounter = CakeModelStore(0 )
+
     launch {
         log("launching flow")
         // Outputs into the storeCounter
-        flow
-            .onCompletion {
-                log("flow.onCompletion()")
-                storeCounter.close()
-            }.collect { counter ->
+        flow.collect { counter ->
                 log("storeCounter.process(intent{this+$counter})")
                 storeCounter.process(intent {
                     (this + counter).also { log("intent ($this)->$it") }
@@ -131,39 +187,93 @@ fun main() = runBlocking(newSingleThreadContext("fake-main")) {
     log("delay")
     delay(500)
     val j1 = launchCollector("j1", storeCounter)
-
-    log("delay")
-    delay(600)
-    log("cancelling j1")
-    j1.cancel()
-
-    log("delay")
-    delay(1000)
-    launchCollector("j2", storeCounter)
+//
+//    log("delay")
+//    delay(600)
+//    log("cancelling j1")
+//    j1.cancel()
 
     log("delay")
     delay(1000)
-    launchCollector("j3", storeCounter)
+    val j2 = launchCollector("j2", storeCounter)
+
+    log("delay")
+    delay(2000)
+    val j3 = launchCollector("j3", storeCounter)
 
     log("delay")
     delay(100)
 
-    log("joinAll()")
-    joinAll()
+    // Cancels all children of the [Job] in this context
+    log("coroutineContext.cancelChildren()")
+    coroutineContext.cancelChildren()
+/*
+    log("j1.cancel()")
+    j1.cancel()
+    log("j2.cancel()")
+    j2.cancel()
+    log("j3.cancel()")
+    j3.cancel()
+*/
+
+    // Cancel scope, it's job and all it's children.
+//    this.cancel("this.cancel()")
+
+    // This cascades cancellation to all children collecting jobs.
+//    log("storeCounter.cancel()")
+//    storeCounter.cancel()
+
+    // Suspends current coroutine until all given jobs are complete.
+//    log("joinAll()")
+//    joinAll()
 
     log("end of main()")
 }
 
+@FlowPreview @ExperimentalCoroutinesApi
+private fun CoroutineScope.launchCollector2(name: String, storeCounter: ChannelModelStore<Int>){
+    log("Launching $name")
+    val receiveChannel = storeCounter.modelState()
+    launch {
+        receiveChannel
+            .consumeAsFlow()
+            .collect {
+                log("$name[$it]")
+            }
+    }
+
+}
+
+@FlowPreview @ExperimentalCoroutinesApi
+private fun CoroutineScope.launchCollector(name: String, storeCounter: ReceiverChannelModelStore<Int>): Job {
+    log("Launching $name")
+
+    return storeCounter.modelState().let { receiveChannel ->
+        receiveChannel
+            .consumeAsFlow()
+            .onEach {
+                log("$name[$it]")
+                log( "$name receiveChannel.isClosedForReceive = ${receiveChannel.isClosedForReceive}")
+            }
+            .onCompletion { log("$name consumeAs.onCompletion()") }
+            .launchIn(this)
+            .also { job ->
+                log("Launched $name")
+                job.invokeOnCompletion {
+                    log("$name job.invokeOnCompletion()")
+                    log( "$name receiveChannel.isClosedForReceive = ${receiveChannel.isClosedForReceive}")
+//                    log("$name job.receiveChannel.cancel()")
+//                    receiveChannel.cancel()
+                }
+            }
+    }
+}
+
+@FlowPreview @ExperimentalCoroutinesApi
 private fun CoroutineScope.launchCollector(name: String, storeCounter: FlowModelStore<Int>): Job {
     log("Launching $name")
-    return launch {
-        log("$name pre-collect")
-        storeCounter.modelState().collect {
-            log("$name ensureActive()")
-            ensureActive()
-            log("$name[$it]")
-        }
-        log("$name post-collect")
+    return storeCounter.launchStoreCollect {
+        log("$name[$it]")
     }.also {
         log("Launched $name")
     }
