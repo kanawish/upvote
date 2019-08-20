@@ -5,8 +5,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ConflatedBroadcastChannel
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -14,7 +12,6 @@ import kotlinx.coroutines.channels.produce
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.flow
@@ -147,9 +144,19 @@ open class FlowModelStore<S>(
 
 fun log(msg: String) = println("[${Thread.currentThread().name}] $msg")
 
+@ExperimentalCoroutinesApi
+fun CoroutineScope.producer(): ReceiveChannel<Int> = produce {
+    for (i in 1..15) {
+        log("producer.delay(500)")
+        delay(500)
+        log("producer.send($i)")
+        send(i)
+    }
+}
+
 @FlowPreview
 val flow: Flow<Int> = flow {
-    for (i in 1..5) {
+    for (i in 1..15) {
         log("flow.delay(500)")
         delay(500)
         log("flow.emit($i)")
@@ -157,20 +164,14 @@ val flow: Flow<Int> = flow {
     }
 }
 
-@ExperimentalCoroutinesApi
-fun CoroutineScope.producer(): ReceiveChannel<Int> = produce {
-    for (i in 1..15) {
-        log("producer delay(500)")
-        delay(500)
-        log("producer send($i)")
-        send(i)
-    }
-}
-
 @FlowPreview @ExperimentalCoroutinesApi
 fun main() = runBlocking(newSingleThreadContext("fake-main")) {
 
     val storeCounter = CakeModelStore(0 )
+
+    log("producer launching")
+    val producerJob = launch { producer() }
+        .apply { invokeOnCompletion { log("producer.completion") } }
 
     launch {
         log("launching flow")
@@ -184,37 +185,39 @@ fun main() = runBlocking(newSingleThreadContext("fake-main")) {
         log("completed flow")
     }
 
-    log("delay")
+    log("main.delay(500)")
     delay(500)
     val j1 = launchCollector("j1", storeCounter)
-//
-//    log("delay")
+
+//    log("main.delay(500)")
 //    delay(600)
 //    log("cancelling j1")
 //    j1.cancel()
 
-    log("delay")
+    log("main.delay(1000)")
     delay(1000)
     val j2 = launchCollector("j2", storeCounter)
 
-    log("delay")
+    log("main.delay(2000)")
     delay(2000)
     val j3 = launchCollector("j3", storeCounter)
 
-    log("delay")
+    log("main.delay(100)")
     delay(100)
 
     // Cancels all children of the [Job] in this context
-    log("coroutineContext.cancelChildren()")
-    coroutineContext.cancelChildren()
-/*
+//    log("coroutineContext.cancelChildren()")
+//    coroutineContext.cancelChildren()
+
+    // Cancel collector jobs, just to
     log("j1.cancel()")
     j1.cancel()
     log("j2.cancel()")
     j2.cancel()
     log("j3.cancel()")
     j3.cancel()
-*/
+    log("producerJob.dispose()")
+    producerJob.cancel()
 
     // Cancel scope, it's job and all it's children.
 //    this.cancel("this.cancel()")
@@ -224,8 +227,8 @@ fun main() = runBlocking(newSingleThreadContext("fake-main")) {
 //    storeCounter.cancel()
 
     // Suspends current coroutine until all given jobs are complete.
-//    log("joinAll()")
-//    joinAll()
+    log("joinAll()")
+    joinAll()
 
     log("end of main()")
 }
