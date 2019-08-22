@@ -33,16 +33,24 @@ open class CakeModelStore<S>(startingState: S):ReceiverChannelModelStore<S> {
 
     private val store = ConflatedBroadcastChannel(startingState)
 
-    suspend fun process(intent: Intent<S>) {
-        store.send( intent.reduce(store.value) )
+    // NOTE: Looks good, but doesn't safeguard vs access outside main thread.
+    fun process(intent: Intent<S>) {
+        store.offer( intent.reduce(store.value) )
     }
 
-    // TODO: Continue here
+    /**
+     * TODO: Check exactly the behaviour, in context of:
+     *  https://github.com/Kotlin/kotlinx.coroutines/blob/master/ui/coroutines-guide-ui.md
+     *  and https://developer.android.com/kotlin/coroutines
+     */
     override fun modelState(): ReceiveChannel<S> {
         return store.openSubscription()
     }
 
-    // TODO: Ask a few questions on ASG re: need to cancel, etc.
+    /**
+     * By calling cancel, all receiving channels will be closed, effectively
+     * disposing of all subscriptions on this store.
+     */
     fun cancel() {
         store.cancel()
     }
@@ -169,9 +177,11 @@ fun main() = runBlocking(newSingleThreadContext("fake-main")) {
 
     val storeCounter = CakeModelStore(0 )
 
+/*
     log("producer launching")
     val producerJob = launch { producer() }
         .apply { invokeOnCompletion { log("producer.completion") } }
+*/
 
     launch {
         log("launching flow")
@@ -189,17 +199,17 @@ fun main() = runBlocking(newSingleThreadContext("fake-main")) {
     delay(500)
     val j1 = launchCollector("j1", storeCounter)
 
-//    log("main.delay(500)")
-//    delay(600)
-//    log("cancelling j1")
-//    j1.cancel()
-
     log("main.delay(1000)")
     delay(1000)
     val j2 = launchCollector("j2", storeCounter)
 
-    log("main.delay(2000)")
-    delay(2000)
+    log("main.delay(500)")
+    delay(500)
+    log("j1.cancel()")
+    j1.cancel()
+
+    log("main.delay(1500)")
+    delay(1500)
     val j3 = launchCollector("j3", storeCounter)
 
     log("main.delay(100)")
@@ -210,14 +220,16 @@ fun main() = runBlocking(newSingleThreadContext("fake-main")) {
 //    coroutineContext.cancelChildren()
 
     // Cancel collector jobs, just to
-    log("j1.cancel()")
-    j1.cancel()
+//    log("j1.cancel()")
+//    j1.cancel()
     log("j2.cancel()")
     j2.cancel()
     log("j3.cancel()")
     j3.cancel()
+/*
     log("producerJob.dispose()")
     producerJob.cancel()
+*/
 
     // Cancel scope, it's job and all it's children.
 //    this.cancel("this.cancel()")
@@ -256,7 +268,7 @@ private fun CoroutineScope.launchCollector(name: String, storeCounter: ReceiverC
             .consumeAsFlow()
             .onEach {
                 log("$name[$it]")
-                log( "$name receiveChannel.isClosedForReceive = ${receiveChannel.isClosedForReceive}")
+                log( "$name onEach{} receiveChannel.isClosedForReceive = ${receiveChannel.isClosedForReceive}")
             }
             .onCompletion { log("$name consumeAs.onCompletion()") }
             .launchIn(this)
@@ -264,10 +276,11 @@ private fun CoroutineScope.launchCollector(name: String, storeCounter: ReceiverC
                 log("Launched $name")
                 job.invokeOnCompletion {
                     log("$name job.invokeOnCompletion()")
-                    log( "$name receiveChannel.isClosedForReceive = ${receiveChannel.isClosedForReceive}")
+                    log( "$name invokeOnCompletion{} receiveChannel.isClosedForReceive = ${receiveChannel.isClosedForReceive}")
 //                    log("$name job.receiveChannel.cancel()")
 //                    receiveChannel.cancel()
                 }
+                log( "$name invokeOnCompletion{} receiveChannel.isClosedForReceive = ${receiveChannel.isClosedForReceive}")
             }
     }
 }
