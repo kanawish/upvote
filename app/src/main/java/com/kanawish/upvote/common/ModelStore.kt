@@ -1,6 +1,6 @@
 package com.kanawish.upvote.common
 
-import io.reactivex.Observable
+import kotlinx.coroutines.flow.Flow
 
 interface ModelStore<S> {
     /**
@@ -9,15 +9,15 @@ interface ModelStore<S> {
      * ModelState is immutable. Processed intents will work much like `copy()`
      * and create a new (modified) modelState from an old one.
      */
-    fun process(intent: Intent<S>)
+    suspend fun process(intent: Intent<S>)
 
     /**
-     * Observable stream of changes to ModelState
+     * Stream of changes to ModelState
      *
-     * Every time a modelState is replaced by a new one, this observable will
-     * fire.
+     * Every time a modelState is replaced by a new one, this Flow will
+     * emit.
      *
-     * This is what views will subscribe to.
+     * This is what views subscribe to.
      */
-    fun modelState(): Observable<S>
+    fun modelState(): Flow<S>
 }

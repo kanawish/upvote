@@ -1,5 +1,5 @@
 package com.kanawish.upvote.common
 
 interface IntentFactory<E> {
-    fun process(viewEvent:E)
+    suspend fun process(viewEvent:E)
 }

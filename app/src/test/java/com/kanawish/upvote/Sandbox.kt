@@ -95,6 +95,8 @@ private fun CoroutineScope.launchCollector(name: String, storeCounter: SandboxMo
         log("$name storeCounter.modelState()")
         storeCounter.modelState()
             .onEach { log("$name[$it]") }
+            .onEach { log("$name[$it]\'") }
+            .onEach { log("$name[$it]\"") }
             .onCompletion { log("$name storeCounter.modelState().onCompletion {}") }
             .catch { e -> log(e.message ?: "Empty exception.") }
             .collect()
@@ -115,6 +117,25 @@ open class SandboxModelStore<S>(startingState: S) {
     fun cancel() { store.cancel() }
 
     fun logState() {
-        log("$store.")
+        log("$store")
     }
 }
+
+
+/*
+// First approach...
+fun playPenViewEvents(): Flow<MainViewEvent> {
+    val flows = listOf(
+            heartButton.clicks().map { MainViewEvent.LoveItClick },
+            thumbButton.clicks().map { MainViewEvent.ThumbsUpClick }
+    )
+
+    return channelFlow {
+        flows.forEach { eventFlow ->
+            launch {
+                eventFlow.collect { mainViewEvent -> send(mainViewEvent) }
+            }
+        }
+    }
+}
+*/

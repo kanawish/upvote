@@ -1,7 +1,10 @@
 package com.kanawish.upvote.common
 
-import com.kanawish.upvote.model.UpvoteModel
-
+/**
+ * NOTE: Intent are supposed to be quick and non blocking.
+ *   It's fine if they launch async co-routines of their own,
+ *   but they're responsible for scoping/cancellation and so forth.
+ */
 interface Intent<T> {
     fun reduce(oldState: T): T
 }

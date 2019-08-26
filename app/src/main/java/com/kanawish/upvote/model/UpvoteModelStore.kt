@@ -1,17 +1,20 @@
 package com.kanawish.upvote.model
 
-import com.kanawish.upvote.common.RxModelStore
+import com.kanawish.upvote.common.FlowModelStore
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 
 /**
  * @startuml
  * hide empty members
  * interface ModelStore
- * abstract class RxModelStore
+ * abstract class FlowModelStore
  * object UpvoteModelStore
  *
- * ModelStore <|-- RxModelStore
- * RxModelStore -- UpvoteModelStore
+ * ModelStore <|-- FlowModelStore
+ * FlowModelStore -- UpvoteModelStore
  * @enduml
  */
+@FlowPreview @ExperimentalCoroutinesApi
 object UpvoteModelStore :
-    RxModelStore<UpvoteModel>(UpvoteModel(0, 0))
+    FlowModelStore<UpvoteModel>(UpvoteModel(0, 0))
