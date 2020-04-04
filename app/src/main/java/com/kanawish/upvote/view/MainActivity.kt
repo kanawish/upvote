@@ -28,8 +28,9 @@ import timber.log.Timber
 @FlowPreview @ExperimentalCoroutinesApi
 class MainActivity :
     AppCompatActivity(),
-    ViewEventFlow<MainViewEvent>,
-    CoroutineScope by MainScope() {
+    ViewEventFlow<MainViewEvent> {
+
+    private val scope: CoroutineScope = MainScope()
 
     private lateinit var counterTextView:TextView
 
@@ -53,23 +54,22 @@ class MainActivity :
 
         // Output
         viewEvents()
-            .onCompletion {  }
             .onEach { event -> MainViewIntentFactory.process(event) }
             .lifecycleLog("viewEvents()")
-            .launchIn(this)
+            .launchIn(scope)
 
-        // Input(s)
         // TODO: Improve with a more complex example, with filtering and/or grouping.
+        // Input(s)
         UpvoteModelStore
             .modelState()
             .lifecycleLog("modelState()")
             .forCounterTextView()
-            .launchIn(this)
+            .launchIn(scope)
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        cancel() // CoroutineScope.cancel()
+        scope.cancel() // CoroutineScope.cancel()
     }
 
     /**
@@ -80,7 +80,7 @@ class MainActivity :
         val flows = listOf(
                 heartButton.clicks().map { MainViewEvent.LoveItClick },
                 thumbButton.clicks().map { MainViewEvent.ThumbsUpClick },
-                cloudButton.clicks().map { MainViewEvent.CloudClick(this) }
+                cloudButton.clicks().map { MainViewEvent.CloudClick(scope) }
         )
 
         return flows.asFlow().flattenMerge(flows.size)
@@ -92,13 +92,14 @@ class MainActivity :
      *   and how that interface was just a 'convention' thing, didn't make
      *   sense to keep it.
      */
-    private fun Flow<UpvoteModel>.forCounterTextView() = onEach { model ->
-        counterTextView.text =
-            resources.getString(
-                    R.string.upvotes,
-                    model.hearts,
-                    model.thumbs
-            )
-    }
+    private fun Flow<UpvoteModel>.forCounterTextView() =
+        onEach { model ->
+            counterTextView.text =
+                resources.getString(
+                        R.string.upvotes,
+                        model.hearts,
+                        model.thumbs
+                )
+        }
 
 }
