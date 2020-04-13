@@ -2,9 +2,9 @@ package com.kanawish.upvote.intent
 
 import com.kanawish.upvote.common.Intent
 import com.kanawish.upvote.common.IntentFactory
+import com.kanawish.upvote.common.infoWorkingIn
 import com.kanawish.upvote.common.intent
 import com.kanawish.upvote.common.sideEffect
-import com.kanawish.upvote.intent.MainViewIntentFactory.cloudSideEffectIntent
 import com.kanawish.upvote.model.UpvoteModel
 import com.kanawish.upvote.model.UpvoteModelStore
 import com.kanawish.upvote.view.MainViewEvent
@@ -24,7 +24,8 @@ import kotlinx.coroutines.launch
 @FlowPreview @ExperimentalCoroutinesApi
 object MainViewIntentFactory : IntentFactory<MainViewEvent> {
 
-    override suspend fun process(viewEvent: MainViewEvent) {
+    override fun process(viewEvent: MainViewEvent) {
+        infoWorkingIn("🏭 MainViewIntentFactory.process( ${viewEvent} )")
         UpvoteModelStore.process(toIntent(viewEvent))
     }
 
@@ -37,21 +38,26 @@ object MainViewIntentFactory : IntentFactory<MainViewEvent> {
     }
 
     class AddHeart :Intent<UpvoteModel> {
-        override fun reduce(oldState: UpvoteModel) =
-            oldState.copy(hearts = oldState.hearts + 1)
+        override fun reduce(oldState: UpvoteModel): UpvoteModel {
+            infoWorkingIn("⅀ addHeart.reduce(oldState.❤️  + 1)")
+            return oldState.copy(hearts = oldState.hearts + 1)
+        }
     }
 
     class AddThumbsUp :Intent<UpvoteModel> {
-        override fun reduce(oldState: UpvoteModel) =
-            oldState.copy(thumbs = oldState.thumbs + 1)
+        override fun reduce(oldState: UpvoteModel): UpvoteModel {
+            infoWorkingIn("⅀ addThumbsUp.reduce(oldState.👍 + 1)")
+            return oldState.copy(thumbs = oldState.thumbs + 1)
+        }
     }
 
-    // https://medium.com/@elizarov/coroutine-context-and-scope-c8b255d59055
-    // TODO: Finish exploring this.
     fun CoroutineScope.cloudSideEffectIntent(): Intent<UpvoteModel> = sideEffect {
+        infoWorkingIn("⅀ CoroutineScope.cloudSideEffectIntent() [old == new]")
         // CPU side-effecting.
         launch(Dispatchers.Default) {
+            infoWorkingIn("↗ launch(Dispatchers.Default) {...}")
             fakeWebsocketSource().collect { cpuScopeIntent ->
+                infoWorkingIn("↘ collect { 💌 - ${cpuScopeIntent.hashCode()} }")
                 UpvoteModelStore.process(cpuScopeIntent)
             }
         }
@@ -60,10 +66,14 @@ object MainViewIntentFactory : IntentFactory<MainViewEvent> {
 
 private fun fakeWebsocketSource(): Flow<Intent<UpvoteModel>> {
     return flow {
-        val heartIntent = intent<UpvoteModel> { copy(hearts = hearts + 1) }
-        while (true) {
+        val heartIntent = intent<UpvoteModel> {
+            infoWorkingIn("⅀ heartCloudIntent.reduce(oldState.💌  + 1)")
+            copy(hearts = hearts + 1)
+        }
+
+        for (i in 1..3) {
             emit(heartIntent)
-            delay(500)
+            delay(5000)
         }
     }
 }

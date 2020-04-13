@@ -7,6 +7,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.kanawish.upvote.R
 import com.kanawish.upvote.common.ViewEventFlow
 import com.kanawish.upvote.common.clicks
+import com.kanawish.upvote.common.infoWorkingIn
 import com.kanawish.upvote.intent.MainViewIntentFactory
 import com.kanawish.upvote.model.UpvoteModel
 import com.kanawish.upvote.model.UpvoteModelStore
@@ -17,15 +18,17 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flattenMerge
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.launch
 import timber.log.Timber
 
-@FlowPreview @ExperimentalCoroutinesApi
+@ExperimentalCoroutinesApi @FlowPreview
 class MainActivity :
     AppCompatActivity(),
     ViewEventFlow<MainViewEvent> {
@@ -39,9 +42,12 @@ class MainActivity :
     private lateinit var cloudButton:Button
 
     fun <S> Flow<S>.lifecycleLog(name: String): Flow<S> = this
-        .onStart { Timber.i("$name.onStart {}") }
-        .onEach { Timber.i("$name.onEach {$it}") }
-        .onCompletion { Timber.i("$name.onCompletion {}") }
+        .onStart { infoWorkingIn("$name.onStart {}") }
+        .onEach {
+            infoWorkingIn("👁  $name.onEach { $it }")
+            Timber.i("∎")
+        }
+        .onCompletion { infoWorkingIn("$name.onCompletion {}") }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,8 +61,10 @@ class MainActivity :
         // Output
         viewEvents()
             .onEach { event -> MainViewIntentFactory.process(event) }
-            .lifecycleLog("viewEvents()")
             .launchIn(scope)
+/*
+        registerListeners()
+*/
 
         // TODO: Improve with a more complex example, with filtering and/or grouping.
         // Input(s)
@@ -70,6 +78,24 @@ class MainActivity :
     override fun onDestroy() {
         super.onDestroy()
         scope.cancel() // CoroutineScope.cancel()
+    }
+
+    /**
+     * Sometimes a counter example to illustrate the pattern can be useful.
+     */
+    fun registerListeners() {
+        heartButton.setOnClickListener {
+            infoWorkingIn("≅ 'manual' clickListener ❤️")
+            MainViewIntentFactory.process(MainViewEvent.LoveItClick)
+        }
+        thumbButton.setOnClickListener {
+            infoWorkingIn("≅ 'manual' clickListener 👍️")
+            MainViewIntentFactory.process(MainViewEvent.ThumbsUpClick)
+        }
+        cloudButton.setOnClickListener {
+            infoWorkingIn("≅ 'manual' clickListener 💌☁️️")
+            MainViewIntentFactory.process(MainViewEvent.CloudClick(scope))
+        }
     }
 
     /**

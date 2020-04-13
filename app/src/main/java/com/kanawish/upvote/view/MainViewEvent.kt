@@ -3,8 +3,17 @@ package com.kanawish.upvote.view
 import kotlinx.coroutines.CoroutineScope
 
 sealed class MainViewEvent {
-    object ThumbsUpClick : MainViewEvent()
-    object LoveItClick : MainViewEvent()
+    object ThumbsUpClick : MainViewEvent() {
+        override fun toString(): String {
+            return "👍 Click"
+        }
+    }
+    object LoveItClick : MainViewEvent() {
+        override fun toString(): String {
+            return "❤️ Click"
+        }
+    }
+
 
     /**
      * NOTE: Lots of possible alternatives re: scoping here.
@@ -13,5 +22,9 @@ sealed class MainViewEvent {
      *  It's likely something we'd never use "for real", assume real intent factories
      *  will get their own lifecycle+scoping.
      */
-    data class CloudClick(val scope: CoroutineScope) : MainViewEvent()
+    data class CloudClick(val scope: CoroutineScope) : MainViewEvent() {
+        override fun toString(): String {
+            return "💌☁️ Click"
+        }
+    }
 }

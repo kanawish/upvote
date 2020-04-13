@@ -15,6 +15,6 @@ import kotlinx.coroutines.FlowPreview
  * FlowModelStore -- UpvoteModelStore
  * @enduml
  */
-@FlowPreview @ExperimentalCoroutinesApi
+@ExperimentalCoroutinesApi @FlowPreview
 object UpvoteModelStore :
     FlowModelStore<UpvoteModel>(UpvoteModel(0, 0))

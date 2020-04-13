@@ -9,7 +9,7 @@ interface ModelStore<S> {
      * ModelState is immutable. Processed intents will work much like `copy()`
      * and create a new (modified) modelState from an old one.
      */
-    suspend fun process(intent: Intent<S>)
+    fun process(intent: Intent<S>)
 
     /**
      * Stream of changes to ModelState
