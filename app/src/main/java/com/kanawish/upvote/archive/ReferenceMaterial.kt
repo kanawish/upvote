@@ -6,8 +6,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.channels.SendChannel
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 /*
  * Approach originally taken from https://github.com/ZacSweers/CatchUp/blob/master/libraries/flowbinding/
@@ -25,6 +27,11 @@ fun <E> SendChannel<E>.safeOffer(value: E) = !isClosedForSend && try {
 }
 
 @ExperimentalCoroutinesApi suspend fun foo(buttonView:View ) {
+    fun main() = runBlocking<Unit> {
+        // Convert an integer range to a flow
+        (1..3).asFlow().collect { value -> println(value) }
+    }
+
     val buttonClicks = buttonView.clicks()
     MainScope().launch {
         buttonClicks.collect {

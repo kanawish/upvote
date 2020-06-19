@@ -26,11 +26,7 @@ open class FlowModelStore<S>(startingState: S) : ModelStore<S> {
         // Reduce from MainScope()
         scope.launch {
             while (isActive)
-                store.offer(
-                        intents
-                            .receive() // suspends only if `intents` is empty.
-                            .reduce(store.value)
-                )
+                store.offer(intents.receive().reduce(store.value))
         }
     }
 

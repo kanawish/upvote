@@ -19,6 +19,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flattenConcat
 import kotlinx.coroutines.flow.flattenMerge
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
@@ -62,9 +63,6 @@ class MainActivity :
         viewEvents()
             .onEach { event -> MainViewIntentFactory.process(event) }
             .launchIn(scope)
-/*
-        registerListeners()
-*/
 
         // TODO: Improve with a more complex example, with filtering and/or grouping.
         // Input(s)
@@ -78,24 +76,6 @@ class MainActivity :
     override fun onDestroy() {
         super.onDestroy()
         scope.cancel() // CoroutineScope.cancel()
-    }
-
-    /**
-     * Sometimes a counter example to illustrate the pattern can be useful.
-     */
-    fun registerListeners() {
-        heartButton.setOnClickListener {
-            infoWorkingIn("≅ 'manual' clickListener ❤️")
-            MainViewIntentFactory.process(MainViewEvent.LoveItClick)
-        }
-        thumbButton.setOnClickListener {
-            infoWorkingIn("≅ 'manual' clickListener 👍️")
-            MainViewIntentFactory.process(MainViewEvent.ThumbsUpClick)
-        }
-        cloudButton.setOnClickListener {
-            infoWorkingIn("≅ 'manual' clickListener 💌☁️️")
-            MainViewIntentFactory.process(MainViewEvent.CloudClick(scope))
-        }
     }
 
     /**
@@ -127,5 +107,25 @@ class MainActivity :
                         model.thumbs
                 )
         }
+
+    /**
+     * Sometimes a counter example can be useful.
+     *
+     * This is an equivalent non-reactive approach.
+     */
+    fun registerListeners() {
+        heartButton.setOnClickListener {
+            infoWorkingIn("≅ 'manual' clickListener ❤️")
+            MainViewIntentFactory.process(MainViewEvent.LoveItClick)
+        }
+        thumbButton.setOnClickListener {
+            infoWorkingIn("≅ 'manual' clickListener 👍️")
+            MainViewIntentFactory.process(MainViewEvent.ThumbsUpClick)
+        }
+        cloudButton.setOnClickListener {
+            infoWorkingIn("≅ 'manual' clickListener 💌☁️️")
+            MainViewIntentFactory.process(MainViewEvent.CloudClick(scope))
+        }
+    }
 
 }
